@@ -12,8 +12,11 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Pinned to images that still ship Python 3.9 builds, so the version
+        # the tool claims to support is the version CI actually runs.
+        os: [ubuntu-24.04, windows-2022]
         python-version: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
