@@ -203,7 +203,17 @@ badge for it, and some companies will not touch it.
 The LICENSE file says one thing and the README says another. This is worse than
 having no licence, because a reader cannot tell which one applies.
 
+The check only fires when the README never names the licence the file carries. A
+README that says "MIT for most, GPL-3.0 where noted" has named MIT, so the GPL
+mention is read as a reference to other repositories, not a claim about this one.
+
 **Fix:** decide, then make both say the same thing.
+
+### `license.other-mentions` (note)
+
+The README names the file's licence and at least one other. Usually a monorepo or
+profile README describing several projects, or a compatibility note. Nothing to
+do unless the other name is a mistake.
 
 ### `license.api-drift` (warn)
 
@@ -285,6 +295,9 @@ information and read as generated.
 No homepage set. For a project with releases this should point at
 `releases/latest`, which is the download page. For a published package, the
 registry page.
+
+Skipped for the `<owner>/<owner>` profile repo: it has no releases and no package,
+so any homepage there points nowhere.
 
 ### `meta.topics` (warn/error)
 

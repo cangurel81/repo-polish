@@ -500,6 +500,11 @@ class Ctx:
         return self.remote[key]
 
 
+def is_profile_repo(ctx):
+    """True for the special <owner>/<owner> repo that renders the profile page."""
+    return bool(ctx.owner) and ctx.name.lower() == ctx.owner.lower()
+
+
 # --------------------------------------------------------------------------
 # local checks
 # --------------------------------------------------------------------------
@@ -743,11 +748,18 @@ def check_license(ctx):
             break
     if readme:
         mentioned = license_mentions(readme)
-        wrong = [m for m in mentioned if m != spdx and m in LICENSE_ALIASES]
-        if wrong:
+        others = [m for m in mentioned if m != spdx and m in LICENSE_ALIASES]
+        if spdx in mentioned:
+            # The README names the file's licence, so other names are references
+            # (dependencies, a per-repository note), not a claim about this repo.
+            if others:
+                r.info("license.other-mentions",
+                       "README also names %s alongside %s; read as a reference"
+                       % (", ".join(sorted(set(others))), spdx))
+        elif others:
             r.error("license.mismatch",
                     "LICENSE file is %s but README says %s"
-                    % (spdx, ", ".join(sorted(set(wrong)))),
+                    % (spdx, ", ".join(sorted(set(others)))),
                     path="README",
                     fix="make the README match the file; the file is authoritative")
     return spdx
@@ -830,8 +842,13 @@ def check_meta(ctx):
 
     home = (meta.get("homepage") or "").strip()
     if not home:
-        r.warn("meta.homepage", "no homepage set",
-               fix="point it at releases/latest, or at the package page if published")
+        if is_profile_repo(ctx):
+            # The profile README repo has no releases and no package; a homepage
+            # there points nowhere, so the warning would be pure noise.
+            r.info("meta.homepage-skipped", "profile README repo; homepage not applicable")
+        else:
+            r.warn("meta.homepage", "no homepage set",
+                   fix="point it at releases/latest, or at the package page if published")
 
     topics = meta.get("topics") or []
     if not topics:

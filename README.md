@@ -136,6 +136,7 @@ only useful for producing a full report.
 | `license.missing` | warn | No LICENSE file |
 | `license.unrecognised` | warn | LICENSE body matches no known licence |
 | `license.mismatch` | error | LICENSE file and README name different licences |
+| `license.other-mentions` | note | README names other licences too, but also names the file's one |
 | `license.api-drift` | warn | GitHub's detected licence differs from the file |
 | `ci.none` | note | No workflow |
 | `ci.eol-node` | warn | Matrix pins a Node major past its end-of-life date |
@@ -143,7 +144,7 @@ only useful for producing a full report.
 | `ci.floating-action` | warn | `uses:` tracks `main`/`master` |
 | `meta.description` | error/warn | Missing, too short, or mostly adjectives |
 | `meta.filler` | warn | Two or more filler adjectives in the description |
-| `meta.homepage` | warn | Homepage empty |
+| `meta.homepage` | warn | Homepage empty (skipped for the `<owner>/<owner>` profile repo) |
 | `meta.topics` | warn/error | Missing, too many, or invalid topics |
 | `release.no-assets` | warn | Latest release ships nothing |
 | `release.unversioned-tag` | warn | Tag carries no version number |
@@ -179,7 +180,7 @@ Cheapest and highest impact first. Each step is verifiable.
 python -m unittest discover -s test -v
 ```
 
-55 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
+59 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
 repository tree in a temp folder.
 
 ## Limits

@@ -167,6 +167,22 @@ class TestLicenseDetection(unittest.TestCase):
         finally:
             fx.cleanup()
 
+    def test_other_licences_named_alongside_the_real_one_are_a_reference(self):
+        # The profile README ends with "MIT for most, GPL-3.0 or AGPL-3.0 where
+        # noted" and has an MIT LICENSE file. Naming both is not a claim that
+        # this repo is GPL, so it must not fail the audit.
+        fx = clean_fixture()
+        try:
+            fx.write("README.md", LONG_README
+                     + "\nEach repository carries its own licence - MIT for most, "
+                       "GPL-3.0 or AGPL-3.0 where noted in its LICENSE file.\n")
+            report, checks = run_audit(fx)
+            self.assertNotIn("license.mismatch", checks)
+            self.assertIn("license.other-mentions", checks)
+            self.assertEqual(finding(report, "license.mismatch"), [])
+        finally:
+            fx.cleanup()
+
 
 class TestEncoding(unittest.TestCase):
     def test_bom_is_flagged(self):
@@ -548,6 +564,49 @@ class TestGhCall(unittest.TestCase):
         self.assertEqual(cmd.count("-X"), 1)
         self.assertEqual(cmd[cmd.index("-X") + 1], "PUT")
         self.assertNotIn("PATCH", cmd)
+
+
+class TestMeta(unittest.TestCase):
+    """check_meta against a fake API payload, no gh, no network."""
+
+    def _report(self, name, owner, **meta):
+        fx = clean_fixture()
+        try:
+            ctx = rp.Ctx(fx.root, owner=owner, name=name, offline=True)
+            ctx.gh = object()  # truthy stand-in; ctx.api is stubbed below
+            payload = {"description": "Indexes and searches a skill catalogue",
+                       "homepage": "", "topics": ["python", "cli", "tooling"]}
+            payload.update(meta)
+            ctx.api = lambda suffix: payload
+            rp.check_meta(ctx)
+            return ctx.report
+        finally:
+            fx.cleanup()
+
+    def test_missing_homepage_warns_on_a_normal_repo(self):
+        report = self._report("skill-router", "cangurel81")
+        self.assertIn("meta.homepage", {r["check"] for r in report.rows})
+
+    def test_profile_repo_does_not_warn_about_homepage(self):
+        # <owner>/<owner> has no releases and no package, so the homepage hint
+        # is noise there; the repo showed up as the only warning in a 12-repo
+        # sweep because of it.
+        report = self._report("cangurel81", "cangurel81")
+        checks = {r["check"] for r in report.rows}
+        self.assertNotIn("meta.homepage", checks)
+        self.assertIn("meta.homepage-skipped", checks)
+
+    def test_profile_detection_is_case_insensitive(self):
+        fx = clean_fixture()
+        try:
+            ctx = rp.Ctx(fx.root, owner="CanGurel", name="cangurel", offline=True)
+            self.assertTrue(rp.is_profile_repo(ctx))
+            ctx.name = "something-else"
+            self.assertFalse(rp.is_profile_repo(ctx))
+            ctx.owner = None
+            self.assertFalse(rp.is_profile_repo(ctx))
+        finally:
+            fx.cleanup()
 
 
 class TestCli(unittest.TestCase):
