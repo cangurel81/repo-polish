@@ -359,23 +359,36 @@ def tracked_files(root):
 
 
 def detect_license(text):
-    """Map a LICENSE body to an SPDX id. Order matters: AGPL before GPL."""
-    low = text.lower()
-    if "gnu affero general public license" in low:
-        return "AGPL-3.0"
-    if "gnu lesser general public license" in low:
-        return "LGPL-3.0"
-    if "gnu general public license" in low:
-        return "GPL-3.0" if "version 3" in low else "GPL-2.0"
-    if "apache license" in low and "2.0" in low:
+    """Map a LICENSE body to an SPDX id.
+
+    The earliest title wins, not the first substring found anywhere in the
+    body. GPL-3.0 section 13 says "you may also combine it with the GNU Affero
+    General Public License", so a plain body search labelled every GPL-3.0
+    repo as AGPL-3.0 and told the user to rewrite READMEs that were correct.
+    """
+    head = " ".join(text[:4000].lower().split())
+
+    titles = (
+        ("gnu affero general public license", "AGPL-3.0"),
+        ("gnu lesser general public license", "LGPL-3.0"),
+        ("gnu general public license", None),
+    )
+    found = sorted((head.find(needle), spdx)
+                   for needle, spdx in titles if head.find(needle) != -1)
+    if found:
+        _, spdx = found[0]
+        if spdx:
+            return spdx
+        return "GPL-3.0" if "version 3" in head else "GPL-2.0"
+    if "apache license" in head and "2.0" in head:
         return "Apache-2.0"
-    if "permission is hereby granted, free of charge" in low:
+    if "permission is hereby granted, free of charge" in head:
         return "MIT"
-    if "redistribution and use in source and binary forms" in low:
-        return "BSD-3-Clause" if "neither the name" in low else "BSD-2-Clause"
-    if "mozilla public license" in low:
+    if "redistribution and use in source and binary forms" in head:
+        return "BSD-3-Clause" if "neither the name" in head else "BSD-2-Clause"
+    if "mozilla public license" in head:
         return "MPL-2.0"
-    if "the unlicense" in low:
+    if "the unlicense" in head:
         return "Unlicense"
     return None
 
@@ -395,15 +408,23 @@ LICENSE_ALIASES = {
 
 
 def license_mentions(text):
-    """SPDX ids named in a README, in the order they appear."""
+    """SPDX ids named in a README, in the order they appear.
+
+    Aliases match on word boundaries. A plain substring search found "mit"
+    inside "commit", "limit" and "submit", so three GPL-3.0 repos whose README
+    never mentions MIT were reported as README-says-MIT mismatches.
+    """
     low = text.lower()
     hits = []
     for spdx, aliases in LICENSE_ALIASES.items():
+        best = None
         for alias in aliases:
-            idx = low.find(alias)
-            if idx != -1:
-                hits.append((idx, spdx))
-                break
+            pattern = r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])"
+            m = re.search(pattern, low)
+            if m and (best is None or m.start() < best):
+                best = m.start()
+        if best is not None:
+            hits.append((best, spdx))
     return [spdx for _, spdx in sorted(hits)]
 
 
@@ -558,8 +579,12 @@ def check_download_links(ctx, text):
                        "releases/latest/download/<asset>")
         return
 
-    for name in links:
-        name = name.rstrip(".,;:")
+    seen = set()
+    for raw in links:
+        name = raw.rstrip(".,;:")
+        if name in seen:
+            continue
+        seen.add(name)
         if assets and name not in assets:
             r.error("readme.dead-download",
                     "README links download/%s but the latest release has: %s"

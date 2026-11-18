@@ -114,8 +114,39 @@ class TestLicenseDetection(unittest.TestCase):
         # AGPL check has to run first or every AGPL repo is mislabelled.
         self.assertEqual(rp.detect_license(AGPL3_TEXT), "AGPL-3.0")
 
+    def test_gpl3_mentioning_affero_in_the_body_stays_gpl3(self):
+        # Real GPL-3.0 section 13 says "you may also combine it with the GNU
+        # Affero General Public License". A whole-body substring search
+        # reported all five GPL-3.0 repos in this workspace as AGPL-3.0.
+        body = GPL3_TEXT + "\n13. Use with the GNU Affero General Public License.\n"
+        self.assertEqual(rp.detect_license(body), "GPL-3.0")
+
+    def test_agpl_title_after_a_copyright_line_is_found(self):
+        text = "Copyright (c) 2026 Someone\n\n" + AGPL3_TEXT
+        self.assertEqual(rp.detect_license(text), "AGPL-3.0")
+
     def test_unknown(self):
         self.assertIsNone(rp.detect_license("All rights reserved, do not copy."))
+
+    def test_alias_does_not_match_inside_a_word(self):
+        # "mit" lives inside "commit", "limit" and "submit"; three GPL-3.0
+        # READMEs that never mention MIT were flagged as saying MIT.
+        self.assertEqual(rp.license_mentions("Fix the commit limit, then submit"), [])
+        self.assertEqual(rp.license_mentions("Licensed under the MIT License"),
+                         ["MIT"])
+        self.assertEqual(rp.license_mentions("See LICENSE (GPL-3.0)."),
+                         ["GPL-3.0"])
+
+    def test_word_containing_mit_does_not_create_a_mismatch(self):
+        fx = Fixture()
+        try:
+            fx.write("LICENSE", GPL3_TEXT)
+            fx.write("README.md", LONG_README.replace("MIT", "GPL-3.0")
+                     + "\nCommit early, limit the scope, submit the patch.\n")
+            _, checks = run_audit(fx)
+            self.assertNotIn("license.mismatch", checks)
+        finally:
+            fx.cleanup()
 
     def test_readme_licence_mismatch_is_an_error(self):
         fx = clean_fixture()
@@ -271,6 +302,17 @@ class TestReadme(unittest.TestCase):
                      "\n[zip](https://github.com/someone/demo-tool/releases/latest/download/demo-tool.zip)\n")
             _, checks = run_audit(fx)
             self.assertNotIn("readme.versioned-asset", checks)
+        finally:
+            fx.cleanup()
+
+    def test_repeated_download_link_is_reported_once(self):
+        fx = clean_fixture()
+        try:
+            link = ("\n[zip](https://github.com/someone/demo-tool/releases/latest/"
+                    "download/demo-tool-v1.2.3.zip)\n")
+            fx.write("README.md", LONG_README + link + link)
+            report, checks = run_audit(fx)
+            self.assertEqual(len(finding(report, "readme.versioned-asset")), 1)
         finally:
             fx.cleanup()
 
