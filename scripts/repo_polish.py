@@ -183,12 +183,21 @@ def find_gh():
     found = shutil.which("gh")
     if found:
         return found
-    for cand in (
-        r"C:\Users\Public\gh\gh.exe",
-        os.path.expanduser(r"~\scoop\shims\gh.exe"),
-        "/usr/local/bin/gh",
-        "/opt/homebrew/bin/gh",
-    ):
+    candidates = []
+    program_files = os.environ.get("ProgramFiles") or os.environ.get("PROGRAMFILES")
+    if program_files:
+        candidates.append(os.path.join(program_files, "GitHub CLI", "gh.exe"))
+    local_app = os.environ.get("LOCALAPPDATA")
+    if local_app:
+        candidates.append(os.path.join(local_app, "GitHubCLI", "bin", "gh.exe"))
+    candidates.extend(
+        [
+            os.path.expanduser(r"~\scoop\shims\gh.exe"),
+            "/usr/local/bin/gh",
+            "/opt/homebrew/bin/gh",
+        ]
+    )
+    for cand in candidates:
         if os.path.isfile(cand):
             return cand
     return None
