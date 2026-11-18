@@ -1,5 +1,7 @@
 # repo-polish
 
+[![test](https://github.com/cangurel81/repo-polish/actions/workflows/test.yml/badge.svg)](https://github.com/cangurel81/repo-polish/actions/workflows/test.yml)
+
 Audit and fix a GitHub repository so it reads as maintained instead of abandoned.
 
 A visitor decides in about eight seconds: is there a README that says what this
