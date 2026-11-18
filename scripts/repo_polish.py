@@ -205,10 +205,16 @@ class Gh:
         except ValueError:
             return None
 
-    def call(self, args, payload=None, timeout=90):
+    def call(self, args, payload=None, method="PATCH", timeout=90):
+        """Call `gh api`. The method lives here, not in `args`.
+
+        Passing "-X PUT" inside args while also passing a payload produced
+        `-X PUT ... -X PATCH`, and gh honours the last one — a topics PUT
+        silently became a PATCH and 404'd.
+        """
         cmd = [self.binary, "api"] + list(args)
         if payload is not None:
-            cmd += ["-X", "PATCH", "--input", "-"]
+            cmd += ["-X", method, "--input", "-"]
         p = subprocess.run(cmd, input=json.dumps(payload).encode("utf-8")
                            if payload is not None else None,
                            capture_output=True, timeout=timeout)
@@ -1093,8 +1099,8 @@ def cmd_meta(args):
             return EXIT_ERROR
         print("updated  %s -> %s" % (slug, ", ".join(sorted(patch))))
     if "topics" in spec:
-        rc, out, err = gh.call(["repos/%s/topics" % slug, "-X", "PUT",
-                                "--input", "-"], payload={"names": topics})
+        rc, out, err = gh.call(["repos/%s/topics" % slug],
+                               payload={"names": topics}, method="PUT")
         if rc != 0:
             print("repo-polish: PUT topics failed: %s" % err.strip(), file=sys.stderr)
             return EXIT_ERROR

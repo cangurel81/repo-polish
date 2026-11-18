@@ -471,6 +471,43 @@ class TestTopics(unittest.TestCase):
         self.assertTrue(rp.validate_topics([""]))
 
 
+class TestGhCall(unittest.TestCase):
+    """The gh argv, without running gh."""
+
+    def _capture(self, **kwargs):
+        captured = {}
+        real_run = rp.subprocess.run
+
+        class Fake:
+            returncode = 0
+            stdout = b"{}"
+            stderr = b""
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = list(cmd)
+            return Fake()
+
+        rp.subprocess.run = fake_run
+        try:
+            rp.Gh("gh").call(["repos/a/b"], payload={"x": 1}, **kwargs)
+        finally:
+            rp.subprocess.run = real_run
+        return captured["cmd"]
+
+    def test_default_method_is_patch(self):
+        cmd = self._capture()
+        self.assertEqual(cmd.count("-X"), 1)
+        self.assertEqual(cmd[cmd.index("-X") + 1], "PATCH")
+
+    def test_topics_put_is_not_overridden_by_patch(self):
+        # Two -X flags in one argv means the last one wins, which turned a
+        # topics PUT into a PATCH and 404'd on the real API.
+        cmd = self._capture(method="PUT")
+        self.assertEqual(cmd.count("-X"), 1)
+        self.assertEqual(cmd[cmd.index("-X") + 1], "PUT")
+        self.assertNotIn("PATCH", cmd)
+
+
 class TestCli(unittest.TestCase):
     def test_clean_repo_exits_zero(self):
         fx = clean_fixture()

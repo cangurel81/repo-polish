@@ -179,7 +179,7 @@ Cheapest and highest impact first. Each step is verifiable.
 python -m unittest discover -s test -v
 ```
 
-48 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
+50 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
 repository tree in a temp folder.
 
 ## Limits
