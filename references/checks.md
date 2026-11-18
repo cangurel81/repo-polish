@@ -361,9 +361,13 @@ list sees no download.
 
 ## links.*
 
-Only with `--check-links`. Every external link in the README is requested; the
-first `--max-links` (default 200) are checked, then `links.truncated` notes the
-rest.
+Only with `--check-links`. Every external link in the README prose is requested;
+the first `--max-links` (default 200) are checked, then `links.truncated` notes
+the rest.
+
+Fenced code blocks and inline code spans are skipped. A README that documents a
+URL shape, quotes a broken example, or shows a JSON snippet has to write URLs
+inside code, and those are not links a reader can click.
 
 ### `links.dead` (error)
 
@@ -371,6 +375,12 @@ The link returns 4xx or 5xx and is not a known bot-blocking host. A dead link in
 a README costs trust faster than a missing one.
 
 **Fix:** update or remove it.
+
+### `links.placeholder` (note)
+
+An example host (`example.com`, `example.org`, `localhost`, `your-domain.com`).
+Not requested: it either resolves to nothing by design or answers on the
+author's own machine. If the README meant a real address, replace it.
 
 ### `links.bot-blocked` (note)
 

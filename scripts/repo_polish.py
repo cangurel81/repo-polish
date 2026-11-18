@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 VERSION = "1.0.0"
@@ -110,6 +111,13 @@ BOT_BLOCKING_HOSTS = (
     "npmjs.com", "npmjs.org", "pypi.org", "packagist.org", "crates.io",
     "marketplace.visualstudio.com", "addons.mozilla.org", "chrome.google.com",
     "hub.docker.com", "linkedin.com", "x.com", "twitter.com",
+)
+
+# Hosts that exist only as examples in documentation. A README that shows a
+# URL shape has to use one of these, so they are never requested.
+PLACEHOLDER_HOSTS = (
+    "example.com", "example.org", "example.net", "localhost", "127.0.0.1",
+    "your-domain.com", "yourdomain.com", "your-username.github.io",
 )
 
 DOWNLOAD_RE = re.compile(r"releases/latest/download/([^\s)\]\"'<>]+)")
@@ -243,6 +251,25 @@ def head(url, timeout=25):
         return exc.code
     except Exception:
         return 0
+
+
+def strip_code(text):
+    """Drop fenced blocks and inline code spans.
+
+    A README that documents the tool (or quotes a broken example) writes URLs
+    inside code. Scanning those as live links reports the documentation as a
+    defect, so every link scan runs on the prose only.
+    """
+    return INLINE_CODE_RE.sub(" ", CODE_BLOCK_RE.sub(" ", text))
+
+
+def is_placeholder_url(url):
+    """True for hosts that exist only as examples; HEAD-ing them proves nothing."""
+    netloc = urllib.parse.urlsplit(url).netloc.lower()
+    host = netloc.rsplit("@", 1)[-1].split(":")[0]
+    if host in PLACEHOLDER_HOSTS:
+        return True
+    return any(host.endswith("." + h) for h in PLACEHOLDER_HOSTS)
 
 
 def read_bytes(path):
@@ -537,7 +564,7 @@ def check_readme(ctx):
 
     # relative links and images must resolve inside the tree
     broken = []
-    for target in MD_LINK_RE.findall(text):
+    for target in MD_LINK_RE.findall(strip_code(text)):
         if target.startswith(("http://", "https://", "#", "mailto:", "tel:")):
             continue
         clean = target.split("#")[0].split("?")[0]
@@ -553,8 +580,7 @@ def check_readme(ctx):
 
     # placeholders left behind, ignoring code: a README that documents the
     # check has to quote the markers it looks for.
-    prose = CODE_BLOCK_RE.sub(" ", text)
-    prose = INLINE_CODE_RE.sub(" ", prose)
+    prose = strip_code(text)
     for pat, label in (("TODO", "TODO marker"), ("Lorem ipsum", "lorem ipsum"),
                        ("<your-name>", "template placeholder"),
                        ("your-username", "template placeholder"),
@@ -571,7 +597,7 @@ def check_download_links(ctx, text):
     if not text:
         return
     r = ctx.report
-    links = DOWNLOAD_RE.findall(text)
+    links = DOWNLOAD_RE.findall(strip_code(text))
     latest = ctx.api("/releases/latest")
     assets = {a["name"] for a in (latest or {}).get("assets", [])}
 
@@ -920,7 +946,7 @@ def check_download_status(ctx, text):
     if not text or not ctx.owner:
         return
     r = ctx.report
-    links = sorted({x.rstrip(".,;:") for x in DOWNLOAD_RE.findall(text)})
+    links = sorted({x.rstrip(".,;:") for x in DOWNLOAD_RE.findall(strip_code(text))})
     for name in links:
         url = "https://github.com/%s/%s/releases/latest/download/%s" % (
             ctx.owner, ctx.name, name)
@@ -937,10 +963,17 @@ def check_external_links(ctx, text):
         return
     r = ctx.report
     urls = []
-    for u in HTTP_RE.findall(text):
+    placeholders = []
+    for u in HTTP_RE.findall(strip_code(text)):
         u = u.rstrip(".,;:)")
-        if u not in urls:
+        if u in urls or u in placeholders:
+            continue
+        if is_placeholder_url(u):
+            placeholders.append(u)
+        else:
             urls.append(u)
+    for u in placeholders:
+        r.info("links.placeholder", "example URL, not requested: %s" % u)
     if len(urls) > ctx.max_links:
         r.info("links.truncated", "checking the first %d of %d links"
                % (ctx.max_links, len(urls)))

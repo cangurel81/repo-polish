@@ -102,6 +102,7 @@ without touching the network.
 | `release.unversioned-tag` | warn | Tag carries no version number |
 | `release.tag-without-release` | note | Tags exist with no release page |
 | `links.dead` | error | External link returns 4xx/5xx (with `--check-links`) |
+| `links.placeholder` | note | Example host, not requested (`example.com`, `localhost`) |
 | `links.bot-blocked` | note | 403/429 from a host known to block bots |
 
 ## Reading the output
@@ -170,6 +171,10 @@ Cheapest and highest impact first. Each step is verifiable.
   fixed asset costs the visible number.
 - **A 403 is not always a dead link.** npm, PyPI, LinkedIn, X and the browser
   extension stores block automated clients. The tool reports those as notes.
+- **Links inside code are not links.** A README that documents a URL shape, or
+  quotes a broken example, writes it in a fenced block or a code span. Those are
+  skipped, and so are example hosts (`example.com`, `localhost`) — they are
+  reported as `links.placeholder` notes instead of being requested.
 - **GitHub's licence detection lags.** `license.api-drift` usually means the
   file was replaced without the sidebar re-reading it; push the exact SPDX text.
 - **`--all` audits the current working directory against each remote repo.**

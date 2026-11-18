@@ -419,6 +419,85 @@ class TestTree(unittest.TestCase):
             fx.cleanup()
 
 
+class TestLinkScan(unittest.TestCase):
+    """Links are read from prose only; code quotes are documentation."""
+
+    def _scan(self, text, status=200):
+        calls = []
+        real = rp.head
+
+        def fake(url, timeout=25):
+            calls.append(url)
+            return status
+
+        fx = clean_fixture()
+        rp.head = fake
+        try:
+            ctx = rp.Ctx(fx.root, owner="someone", name="demo-tool",
+                         offline=True, check_links=True)
+            rp.check_external_links(ctx, text)
+            return ctx.report, calls
+        finally:
+            rp.head = real
+            fx.cleanup()
+
+    def test_strip_code_keeps_prose(self):
+        text = ("Read [the docs](https://docs.example.org/x) now.\n"
+                "```json\n{\"homepage\": \"https://github.com/o/n/releases/latest\"}\n```\n"
+                "Run `curl https://api.example.org/v1` yourself.\n")
+        out = rp.strip_code(text)
+        self.assertIn("https://docs.example.org/x", out)
+        self.assertNotIn("github.com/o/n", out)
+        self.assertNotIn("api.example.org", out)
+
+    def test_link_inside_a_code_block_is_not_requested(self):
+        # repo-polish's own README documents the download URL shape in a fenced
+        # JSON block; HEAD-ing it produced a 404 error against the tool itself.
+        text = ("# tool\n\n```json\n{\"homepage\": "
+                "\"https://github.com/owner/name/releases/latest\"}\n```\n")
+        report, calls = self._scan(text)
+        self.assertEqual(calls, [])
+        self.assertNotIn("links.dead", {r["check"] for r in report.rows})
+
+    def test_link_inside_inline_code_is_not_requested(self):
+        # Cyber-Test's README shows a trailing-backtick URL inside a span.
+        text = "Point it at `https://example.com` first.\n"
+        report, calls = self._scan(text, status=0)
+        self.assertEqual(calls, [])
+        self.assertNotIn("links.unreachable", {r["check"] for r in report.rows})
+
+    def test_prose_link_is_still_requested(self):
+        text = "The changelog lives at https://github.com/someone/demo-tool/releases.\n"
+        report, calls = self._scan(text, status=404)
+        self.assertEqual(calls, ["https://github.com/someone/demo-tool/releases"])
+        self.assertIn("links.dead", {r["check"] for r in report.rows})
+
+    def test_placeholder_host_is_noted_and_not_requested(self):
+        text = "Replace https://example.com/your-repo with your own URL.\n"
+        report, calls = self._scan(text, status=0)
+        self.assertEqual(calls, [])
+        checks = {r["check"] for r in report.rows}
+        self.assertIn("links.placeholder", checks)
+        self.assertNotIn("links.unreachable", checks)
+
+    def test_placeholder_detection_covers_subdomains_and_ports(self):
+        self.assertTrue(rp.is_placeholder_url("https://example.com/x"))
+        self.assertTrue(rp.is_placeholder_url("https://docs.example.org/x"))
+        self.assertTrue(rp.is_placeholder_url("http://localhost:8080/x"))
+        self.assertFalse(rp.is_placeholder_url("https://example.company.com/x"))
+        self.assertFalse(rp.is_placeholder_url("https://github.com/a/b"))
+
+    def test_relative_link_inside_code_is_ignored(self):
+        fx = clean_fixture()
+        try:
+            fx.write("README.md", LONG_README
+                     + "\n```markdown\nSee [the guide](docs/guide.md).\n```\n")
+            _, checks = run_audit(fx)
+            self.assertNotIn("readme.relative-link", checks)
+        finally:
+            fx.cleanup()
+
+
 class TestWorkflows(unittest.TestCase):
     def test_eol_node_in_matrix(self):
         fx = clean_fixture()

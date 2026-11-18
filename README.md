@@ -150,6 +150,7 @@ only useful for producing a full report.
 | `release.unversioned-tag` | warn | Tag carries no version number |
 | `release.tag-without-release` | note | Tags exist with no release page |
 | `links.dead` | error | External link returns 4xx/5xx (with `--check-links`) |
+| `links.placeholder` | note | Example host, not requested (`example.com`, `localhost`) |
 | `links.bot-blocked` | note | 403/429 from a host known to block bots |
 
 `references/checks.md` explains each one: what it catches, why it matters, and
@@ -180,7 +181,7 @@ Cheapest and highest impact first. Each step is verifiable.
 python -m unittest discover -s test -v
 ```
 
-59 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
+66 tests, no network, no `gh`, no `git` required. Every test builds a throwaway
 repository tree in a temp folder.
 
 ## Limits
