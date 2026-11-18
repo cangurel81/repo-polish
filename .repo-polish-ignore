@@ -1,0 +1,6 @@
+# Files that quote mojibake on purpose, so the encoding check skips them.
+# Without this the repository fails its own audit.
+README.md
+SKILL.md
+references/checks.md
+test/test_repo_polish.py
